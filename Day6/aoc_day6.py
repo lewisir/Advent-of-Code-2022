@@ -9,10 +9,8 @@ DAY = "6"
 REAL_INPUT = "Day" + DAY + "/input_day" + DAY + ".txt"
 TEST_INPUT = "Day" + DAY + "/input_test.txt"
 
-TEST_STRING = "ababababababcdefghab"
-TEST_STRING_3 = "nznrnfrfntjfmvfwmzdfjlvtqnbhcprsg"
 
-WINDOW = 4
+WINDOW = 14
 
 if TEST:
     FILENAME = TEST_INPUT
@@ -28,12 +26,11 @@ def get_input_data(filename):
     return file_data
 
 def check_unique_characters(input_string):
-    """check if the input string contains no repeating characters"""
+    """check if the input string contains no repeated characters"""
     for position, char in enumerate(input_string):
         if char in input_string[position+1:]:
             return False
-        else:
-            return True
+    return True
 
 def main():
     """Main program"""
@@ -44,7 +41,7 @@ def main():
     for position in range(len(TEST_STRING)):
         sub_string = TEST_STRING[position:position+WINDOW]
         if check_unique_characters(sub_string):
-            print(f"position for {sub_string} sub_string {position+WINDOW}")
+            print(f"Position for first {WINDOW} distinct characters {position+WINDOW}")
             break
 
 
