@@ -164,8 +164,6 @@ def main():
         for _ in range(move[1]):
             my_rope.move_head(MOVE_CONVERSION[move[0]])
 
-    my_rope.display()
-
     print(
         f"Part II - number of Tail positions of the end of the rope {len(my_rope.rope_sections[-1].tail_positions)}"
     )
