@@ -1,6 +1,6 @@
 """
 --- Advent of Code 2022 ---
---- Day 11: XXXXXXXX ---
+--- Day 11: Monkey in the Middle ---
 """
 
 
