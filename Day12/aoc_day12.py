@@ -3,8 +3,10 @@
 --- Day 12: Hill Climbing Algorithm ---
 """
 from cmath import inf
+from time import perf_counter
 
-TEST = True
+
+TEST = False
 
 DAY = "12"
 REAL_INPUT = "Advent-of-Code-2022/Day" + DAY + "/input_day" + DAY + ".txt"
@@ -177,6 +179,7 @@ def main():
     print(
         f"Part I - shortest distance from S to E is {my_heightmap.spf(my_heightmap.src_coord, my_heightmap.dst_coord)}"
     )
+    print(f"-- Time Taken {perf_counter() - start_time}")
     least_cost = float(inf)
     start_point_list = my_heightmap.all_possible_start_points("a")
     for start in start_point_list:
@@ -187,4 +190,6 @@ def main():
 
 
 if __name__ == "__main__":
+    start_time = perf_counter()
     main()
+    print(f"-- Time Taken {perf_counter() - start_time}")
