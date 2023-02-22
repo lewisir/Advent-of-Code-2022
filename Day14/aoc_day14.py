@@ -1,6 +1,7 @@
 """
 --- Advent of Code 2022 ---
---- Day 14: Regolith Reservoir ---
+--- Day 14: Regolith Reservoir -
+--
 """
 TEST = False
 

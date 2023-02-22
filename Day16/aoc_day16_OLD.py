@@ -3,7 +3,7 @@
 --- Day 16: Proboscidea Volcanium ---
 https://adventofcode.com/2022/day/16
 """
-TEST = False
+TEST = True
 
 DAY = "16"
 REAL_INPUT = "Advent-of-Code-2022/Day" + DAY + "/input_day" + DAY + ".txt"
@@ -17,6 +17,7 @@ else:
     FILENAME = REAL_INPUT
 
 from cmath import inf
+from itertools import permutations
 from time import perf_counter
 
 
@@ -26,64 +27,7 @@ class Valve:
     def __init__(self, location, rate):
         self.location = location
         self.rate = rate
-        self.vectors = {}
         self.open = False
-
-
-class ValvePath:
-    """Model a sequence of opening valves"""
-
-    def __init__(self) -> None:
-        self.path = []
-
-    @property
-    def path_length(self):
-        """calculate and return the length of the path"""
-        length = 0
-        for valve in self.path:
-            length += valve[1]
-        return length
-
-    @property
-    def path_valves(self):
-        """calculate and return the number of valves in the path"""
-        return len(self.path)
-
-    def path_flow(self, time):
-        """calcualte the total flow the path allows from the given time"""
-        flow_rate = 0
-        total_flow = 0
-        for valve in self.path:
-            if time > valve[1] + 1:
-                time -= valve[1] + 1
-                total_flow += flow_rate * (valve[1] + 1)
-                flow_rate += valve[0].rate
-            else:
-                break
-        total_flow += flow_rate * time
-        return total_flow
-
-    def add_valve(self, valve_tuple):
-        """
-        The valve tuple is ('valve', distance)
-        valve is the Valve object
-        distance is the time taken to reach this valve from the preceeding one in the path
-        """
-        self.path.append(valve_tuple)
-
-    def pop_last_valve(self):
-        """remove the last entry from the path"""
-        self.path.pop()
-
-    def display_path(self, time):
-        """Print out the path"""
-        for valve in self.path:
-            print(f"({valve[0].location},{valve[1]})", end="")
-        print(f" - {self.path_flow(time)}")
-
-    def reset_path(self):
-        """Clear the path list"""
-        self.path = []
 
 
 class TunnelMap:
@@ -167,69 +111,75 @@ def get_tunnel_data(input_data):
     return tunnel_map
 
 
-def update_valve_vectors(valve_dict, tunnel_map):
-    """add the vectors for each valve"""
-    for name, valve in valve_dict.items():
-        valve.vectors = tunnel_map.spf(name)
+def calculate_flow(valve_sequence, valve_dict, tunnel_map, time, start_location="AA"):
+    """Given a sequnece of valves and the time calculate the total flow"""
+    total_rate = 0
+    total_flow = 0
+    distance_to_next_valve = 0
+    moving = False
+    current_location = start_location
+    while time > 0:
+        if len(valve_sequence) > 0 and moving is False:
+            next_valve = valve_sequence.pop(0)
+            distance_to_next_valve = tunnel_map.spf(current_location)[next_valve]
+            moving = True
+        time -= 1
+        total_flow += total_rate
+        if distance_to_next_valve > 0:
+            distance_to_next_valve -= 1
+        else:
+            moving = False
+            current_location = next_valve
+            if valve_dict[current_location].open is False:
+                valve_dict[current_location].open = True
+                total_rate += valve_dict[current_location].rate
+    return total_flow
 
 
-def get_viable_valves(path, time, valve_dict):
-    """
-    get a list of the viable valves from the last valve in the path given  the remaining time
-    viable valves are within range and not already in the path
-    """
-    current_valve = path.path[-1][0]
-    visited_valves = []
-    for valve_tuple in path.path:
-        visited_valves.append(valve_tuple[0])
-    viable_valves = []
-    for name, valve in valve_dict.items():
-        distance = valve_dict[current_valve.location].vectors[name]
-        if valve not in visited_valves and distance <= (time - 2) and valve.rate > 0:
-            viable_valves.append((valve, distance))
-    return viable_valves
+def next_reachable_valves(start_valve, remaining_time, open_valves):
+    """Return a dictionary of reachable valves and their distances"""
+    reachable_valves = {}
+    for valve, distance in open_valves.items():
+        if distance < remaining_time:
+            reachable_valves[valve] = distance
+    return reachable_valves
 
 
-def discover_paths(source, time, valve_dict, path=ValvePath(), all_paths=[]):
-    """discover all paths between valves"""
-    path.add_valve(source)
-    next_nodes = get_viable_valves(path, time, valve_dict)
-    if len(next_nodes) == 0:
-        new_path = ValvePath()
-        for valve in path.path:
-            new_path.add_valve(valve)
-        total_flow = new_path.path_flow(TIME)
-        all_paths.append(total_flow)
-        return all_paths
-    for node in next_nodes:
-        discover_paths(node, time - path.path[-1][1], valve_dict, path, all_paths)
-        path.pop_last_valve()
-    return all_paths
+def get_open_valves(start_valve, valve_dict, tunnel_map):
+    """return a dictionary of the open valves and their distances"""
+    open_valves = {}
+    for valve in valve_dict:
+        if valve_dict[valve].open:
+            distance = tunnel_map.spf(start_valve)[valve]
+            open_valves[valve] = distance
+    return open_valves
 
 
 def main():
     """Main program"""
     input_data = get_input_data(FILENAME)
-    all_valve_dict = get_valve_data(input_data)
+    valve_dict = get_valve_data(input_data)
     tunnel_map = get_tunnel_data(input_data)
 
-    update_valve_vectors(all_valve_dict, tunnel_map)
-
-    valve_dict = {}
-    for name, valve in all_valve_dict.items():
+    valve_list = []
+    for valve_name, valve in valve_dict.items():
         if valve.rate > 0:
-            valve_dict[name] = valve
+            valve_list.append(valve_name)
 
-    max_flows = []
-    for name, valve in valve_dict.items():
-        temp_path = ValvePath()
-        if valve.rate != 0:
-            flow_rates = discover_paths(
-                (valve, valve.vectors["AA"]), TIME, valve_dict, temp_path
-            )
-            max_flows.append(max(flow_rates))
-        del temp_path
-    print(f"Max Flow Found {max(max_flows)}")
+    max_flow = 0
+    calculated_combinations = 0
+
+    for combination in permutations(valve_list, 6):
+        combination = list(combination)
+        flow = calculate_flow(combination, valve_dict, tunnel_map, TIME)
+        calculated_combinations += 1
+        if flow > max_flow:
+            max_flow = flow
+            optimum_sequence = combination
+        for valve in valve_dict:
+            valve_dict[valve].open = False
+
+    print(f"Max Flow is {max_flow}\nHaving run {calculated_combinations} combinations")
 
 
 if __name__ == "__main__":
