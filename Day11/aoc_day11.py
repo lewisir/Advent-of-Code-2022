@@ -16,6 +16,8 @@ if TEST:
 else:
     FILENAME = REAL_INPUT
 
+from time import perf_counter
+
 
 class Monkey:
     """Model a Monkey with things that it throws"""
@@ -32,18 +34,18 @@ class Monkey:
         self.num_items_inspected = 0
         self.ease_worry_factor = ease_worry_factor
 
-    def process_items(self) -> list:
+    def process_items(self, common_multiple=1) -> list:
         """Process the Monkey's items"""
         thrown_items = []
         for index, item in enumerate(self.items):
-            updated_item = self.operate(item)
+            updated_item = self.operate(item, common_multiple)
             self.items[index] = updated_item
             thrown_items.append((self.throw(updated_item), updated_item))
             self.num_items_inspected += 1
         self.items = []
         return thrown_items
 
-    def operate(self, item):
+    def operate(self, item, common_multiple):
         operator = self.operation[3]
         value = self.operation[4:]
         if value == "old":
@@ -53,7 +55,12 @@ class Monkey:
         if operator == "+":
             return (item + value) // self.ease_worry_factor
         elif operator == "*":
-            return (item * value) // self.ease_worry_factor
+            # return (item * value) // self.ease_worry_factor
+            if self.ease_worry_factor != 1:
+                return (item * value) // self.ease_worry_factor
+            else:
+                item = item - common_multiple * (item // common_multiple)
+                return item * value
         else:
             print("Unrecgonised Operator")
             return None
@@ -134,6 +141,28 @@ def main():
 
     print(f"Part I - Monkey Business {monkey_business}")
 
+    my_monkeys = process_input(input_data, 1)
+    common_multiple = 1
+    for monkey in my_monkeys.values():
+        common_multiple *= monkey.divisor
+    print(f"Common Multiple {common_multiple}")
+    for _ in range(10000):
+        for monkey in my_monkeys.values():
+            thrown_items = monkey.process_items(common_multiple)
+            for to_monkey in thrown_items:
+                my_monkeys[to_monkey[0]].catch(to_monkey[1])
+
+    inspected_item_count = []
+    for monkey in my_monkeys.values():
+        inspected_item_count.append(monkey.num_items_inspected)
+
+    inspected_item_count.sort(reverse=True)
+    monkey_business = inspected_item_count[0] * inspected_item_count[1]
+
+    print(f"Part II - Monkey Business {monkey_business}")
+
 
 if __name__ == "__main__":
+    start_time = perf_counter()
     main()
+    print(f"-- Time Taken {perf_counter() - start_time}")

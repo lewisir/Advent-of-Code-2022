@@ -3,7 +3,7 @@
 --- Day 16: Proboscidea Volcanium ---
 https://adventofcode.com/2022/day/16
 """
-TEST = False
+TEST = True
 
 DAY = "16"
 REAL_INPUT = "Advent-of-Code-2022/Day" + DAY + "/input_day" + DAY + ".txt"
