@@ -13,12 +13,14 @@ TEST_INPUT = "Advent-of-Code-2022/Day" + DAY + "/input_test.txt"
 if TEST:
     FILENAME = TEST_INPUT
     LIMIT = 20
+    ROW = 10
 else:
     FILENAME = REAL_INPUT
     LIMIT = 4000000
+    ROW = 2000000
 
 
-from cmath import inf
+from time import perf_counter
 
 
 class BeaconZone:
@@ -26,105 +28,113 @@ class BeaconZone:
 
     def __init__(self, input_data) -> None:
         self.input_data = input_data
-        self.sensor_list = []
-        self.beacon_list = []
+        self.sensor_list = set(())
+        self.beacon_list = set(())
         self.sensor_exclusion_distances = {}
         self.populate_data()
-        self.beacon_exclusion_set = set(())
 
-    def populate_data(self):
-        """Extract each sensor from the input data and add to the sensor_list"""
+    def populate_data(self) -> None:
+        """Extract each sensor from the input data and
+        update the sensor, beacon and exclusion distance lists"""
         for data in self.input_data:
             sensor = data[0]
             sensor_x, sensor_y = sensor
             beacon = data[1]
             beacon_x, beacon_y = beacon
             distance = abs(sensor_x - beacon_x) + abs(sensor_y - beacon_y)
-            self.sensor_list.append(sensor)
-            self.beacon_list.append(beacon)
+            self.sensor_list.add(sensor)
+            self.beacon_list.add(beacon)
             self.sensor_exclusion_distances[sensor] = distance
 
-    def exclusion_zone(self, sensor, distance):
-        """return the set of points within the distance of the sensor"""
-        coord_set = set(())
+    def sensor_exclusion_range(self, sensor, coord, ordinate="row"):
+        """Given a row or column and sensor, return the range of values in the row/column that the sensor covers"""
         sensor_x, sensor_y = sensor
-        for d in range(distance + 1):
-            for x in range(d + 1):
-                for x_coord in range(sensor_x - x, sensor_x + x + 1):
-                    for y_coord in range(sensor_y - (d - x), sensor_y + (d - x) + 1):
-                        coord_set.add((x_coord, y_coord))
-        return coord_set
+        distance = self.sensor_exclusion_distances[sensor]
+        if ordinate == "row":
+            # y_diff = abs(sensor_y - coord)
+            diff = abs(sensor_y - coord)
+        elif ordinate == "col":
+            diff = abs(sensor_x - coord)
+        else:
+            print("Bad Ordinate")
 
-    def exclusion_row(self, sensor, distance, row, limit=float(inf)):
-        """return the set of points on the row within the distance to the sensor limited to the x limit"""
-        coord_set = set(())
-        sensor_x, sensor_y = sensor
-        x_allowance = distance - abs(sensor_y - row)
-        for x_coord in range(sensor_x - x_allowance, sensor_x + x_allowance + 1):
-            if x_coord <= limit and x_coord >= 0:
-                coord_set.add((x_coord, row))
-        return coord_set
+        if diff <= distance:
+            coordinate_range = distance - diff
+            if ordinate == "row":
+                coordinate_min = sensor_x - coordinate_range
+                coordinate_max = sensor_x + coordinate_range
+            elif ordinate == "col":
+                coordinate_min = sensor_y - coordinate_range
+                coordinate_max = sensor_y + coordinate_range
+            return (coordinate_min, coordinate_max)
+        else:
+            return None
 
-    def populate_beacon_exclusion(self):
-        """update the beacon_exclusion_set with all the point that cannot have a beacon in them"""
-        for sensor, distance in self.sensor_exclusion_distances.items():
-            self.beacon_exclusion_set.update(self.exclusion_zone(sensor, distance))
-        for beacon in self.beacon_list:
-            self.beacon_exclusion_set.discard(beacon)
+    def exclusion_ranges(self, coorindate, ordinate="row"):
+        exc_ranges = []
+        for sensor in self.sensor_exclusion_distances:
+            sen_exc_range = self.sensor_exclusion_range(sensor, coorindate, ordinate)
+            if sen_exc_range is not None:
+                exc_ranges.append(sen_exc_range)
+        exc_ranges.sort()
+        collapsed_ranges = self.collapse_ranges(exc_ranges)
+        return collapsed_ranges
 
-    def count_exclusion_points(self, row):
-        """Provide the Y coordinate and count the number of points in the row that cannot have a beacon"""
-        point_count = 0
-        for coord in self.beacon_exclusion_set:
-            x_coord, y_coord = coord
-            if y_coord == row:
-                point_count += 1
-        return point_count
+    def collapse_ranges(self, range_list):
+        """Given a list of tuples which are ranges, collapse the ranges to a smaller set"""
+        new_ranges = []
+        new_min, new_max = None, None
+        for sub_range in range_list:
+            current_min, current_max = sub_range
+            if new_min is None:
+                new_min = current_min
+            if new_max is None:
+                new_max = current_max
 
-    def empty_points(self, row):
-        """A new method to count points in a row that cannot hold a beacon"""
-        coord_set = set(())
-        for sensor, distance in self.sensor_exclusion_distances.items():
-            sensor_x, sensor_y = sensor
-            if abs(sensor_y - row) <= distance:
-                coord_set.update(self.exclusion_row(sensor, distance, row))
-        for beacon in self.beacon_list:
-            coord_set.discard(beacon)
-        return len(coord_set)
+            if current_min > new_max + 1:
+                new_ranges.append((new_min, new_max))
+                new_min, new_max = current_min, current_max
+            elif current_max > new_max:
+                new_max = current_max
+        if new_min is None:
+            new_min = current_min
+        if new_max is None:
+            new_max = current_max
+        new_ranges.append((new_min, new_max))
+        return new_ranges
 
-    def limited_empty_points(self, row, limit):
-        """count the points in the row that cannot hold a beacon up to the limit in x"""
-        coord_set = set(())
-        for sensor, distance in self.sensor_exclusion_distances.items():
-            sensor_x, sensor_y = sensor
-            if abs(sensor_y - row) <= distance:
-                coord_set.update(self.exclusion_row(sensor, distance, row, limit))
-        return len(coord_set)
+    def count_in_ranges(
+        self, range_list, lower_limit=float("-inf"), upper_limit=float("inf")
+    ):
+        """count the number of points covered by a list of ranges"""
+        count = 0
+        for range_space in range_list:
+            current_min, current_max = range_space
+            if current_min <= lower_limit:
+                use_min = lower_limit
+            else:
+                use_min = current_min
+            if current_max >= upper_limit:
+                use_max = upper_limit
+            else:
+                use_max = current_max
+            count += use_max - use_min + 1
+        return count
 
-    def non_empty_points(self, row, limit):
-        """Return a set of points that could contain beacson given the row and limit"""
-        coord_set = set(())
-        for x_coord in range(limit + 1):
-            coord_set.add((x_coord, row))
-        for sensor, distance in self.sensor_exclusion_distances.items():
-            sensor_x, sensor_y = sensor
-            if abs(sensor_y - row) <= distance:
-                for coord in self.inclusion_row(sensor, distance, row, limit):
-                    coord_set.discard(coord)
-        return coord_set
+    def value_in_ranges(self, range_list, value):
+        """Return true of the value is within the range list"""
+        for range_space in range_list:
+            current_min, current_max = range_space
+            if value <= current_max and value >= current_min:
+                return True
+        return False
 
-    def inclusion_row(self, sensor, distance, row, limit=float(inf)):
-        """return the set of points on the row greater than the distance to the sensor limited to the x limit"""
-        coord_set = set(())
-        sensor_x, sensor_y = sensor
-        x_allowance = distance - abs(sensor_y - row)
-        for x_coord in range(sensor_x - x_allowance, sensor_x + x_allowance + 1):
-            if x_coord <= limit and x_coord >= 0:
-                coord_set.add((x_coord, row))
-        return coord_set
+    def gaps_in_range(self, range_list):
+        """Given  range list return the value that is missing from the range list"""
+        return range_list[0][1] + 1
 
 
-def get_input_data(filename):
+def get_input_data(filename) -> list:
     """function to read in the input data"""
     file_data = []
     with open(filename) as file:
@@ -133,7 +143,7 @@ def get_input_data(filename):
     return file_data
 
 
-def process_input_data(input_data):
+def process_input_data(input_data) -> list:
     """process the input data to extract each scanner and its closest Beacon"""
     sensor_list = []
     for line in input_data:
@@ -158,20 +168,27 @@ def main():
     input_data = get_input_data(FILENAME)
     data = process_input_data(input_data)
     my_zone = BeaconZone(data)
-    print(
-        f"Part I - Row 10 contains {my_zone.empty_points(10)} points that cannot contain a beacon"
-    )
+    exclusion_count = my_zone.count_in_ranges(my_zone.exclusion_ranges(ROW))
 
-    for row in range(LIMIT + 1):
-        if my_zone.limited_empty_points(row, LIMIT) < LIMIT + 1:
-            beacon_row = row
-    beacon_set = my_zone.non_empty_points(beacon_row, LIMIT)
-    if len(beacon_set) == 1:
-        for beacon_coord in beacon_set:
-            beacon_x, beacon_y = beacon_coord
-        tuning_frequency = beacon_x * 4000000 + beacon_y
-        print(f"Part II - Tuning Frequency {tuning_frequency}")
+    for beacon in my_zone.beacon_list:
+        if (
+            my_zone.value_in_ranges(my_zone.exclusion_ranges(ROW), beacon[0])
+            and beacon[1] == ROW
+        ):
+            exclusion_count -= 1
+    print(f"Part I - {exclusion_count}")
+
+    for y in range(LIMIT + 1):
+        exclusion_range = my_zone.exclusion_ranges(y, "row")
+        exclusion_count = my_zone.count_in_ranges(exclusion_range, 0, LIMIT)
+        if exclusion_count < LIMIT + 1:
+            row = y
+            col = my_zone.gaps_in_range(exclusion_range)
+            break
+    print(f"x {col} and y {row} and answer is {4000000*col + row}")
 
 
 if __name__ == "__main__":
+    start_time = perf_counter()
     main()
+    print(f"-- Time Taken {perf_counter() - start_time}")
